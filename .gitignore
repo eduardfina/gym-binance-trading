@@ -1,0 +1,13 @@
+.idea/
+.vscode/
+.ipynb_checkpoints/
+.DS_Store
+*.pyc
+venv*/
+
+dist/
+*.egg-info/
+build/
+
+gym_binance_trading.egg-info
+binance_trading_environment/datasets/data

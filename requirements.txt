@@ -1,0 +1,16 @@
+
+
+stable-baselines3[extra]
+tensorflow==2.10.1
+
+gym==0.26.0
+tensorboardX
+
+numpy~=1.24.3
+matplotlib~=3.7.2
+gymnasium~=0.29.1
+pandas~=2.0.3
+setuptools~=68.0.0
+yfinance~=0.2.36
+pytz~=2023.3.post1
+tqdm~=4.65.0
