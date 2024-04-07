@@ -18,12 +18,13 @@ class Actions(Enum):
 class TradingEnv(gym.Env):
     metadata = {'render_modes': ['human'], 'render_fps': 3}
 
-    def __init__(self, df, financial_df, initial_usdt, start_date, end_date, volume_trade=0.05, render_mode=None):
+    def __init__(self, df, financial_df, indicators_df, initial_usdt, start_date, end_date, volume_trade=0.05, render_mode=None):
 
         self.render_mode = render_mode
 
         self.df = df
         self.financial_df = financial_df
+        self.indicators_df = indicators_df
         self.last_index = df.index[-1]
 
         self.initial_usdt = initial_usdt
@@ -46,6 +47,7 @@ class TradingEnv(gym.Env):
             'usdt': spaces.Box(low=0, high=np.inf, shape=(1,), dtype=np.float32),
             'crypto_data': spaces.Box(low=0, high=np.inf, shape=(self.df.shape[1]-1,)),
             'financial_data': spaces.Box(low=-np.inf, high=np.inf, shape=(self.financial_df.shape[1]-1,)),
+            'indicators_data': spaces.Box(low=-np.inf, high=np.inf, shape=(self.indicators_df.shape[1]-1,)),
             'portfolio': spaces.Box(low=0, high=np.iinfo(np.int64).max, shape=(len(self.portfolio),), dtype=np.int64)
         })
 
@@ -54,21 +56,16 @@ class TradingEnv(gym.Env):
 
     def _get_obs(self):
         date = self.df.loc[self.period, 'timestamp'].split(' ')[0]
-        date_index = self.financial_df.loc[self.financial_df['Dates'] == date].index[0]
+        financial_index = self.financial_df.loc[self.financial_df['Dates'] == date].index[0]
+        indicators_index = self.indicators_df.loc[self.indicators_df['Dates'] == date].index[0]
 
-        obs = {}
-
-        try:
-            obs = {
+        return {
                 'usdt': np.array(self.usdt, dtype=np.float32).reshape(1, ),
                 'crypto_data': self.df.loc[self.period, self.df.columns != 'timestamp'].to_numpy(dtype=np.float32),
-                'financial_data': self.financial_df.loc[date_index, self.financial_df.columns != 'Dates'].to_numpy(dtype=np.float32),
+                'financial_data': self.financial_df.loc[financial_index, self.financial_df.columns != 'Dates'].to_numpy(dtype=np.float32),
+                'indicators_data': self.indicators_df.loc[indicators_index, self.indicators_df.columns != 'Dates'].to_numpy(dtype=np.float32),
                 'portfolio': np.array(self.portfolio, dtype=np.int64)
-            }
-        except:
-            print('Fuck!')
-
-        return obs
+        }
 
     def reset(self, seed=None, options=None):
 
@@ -80,6 +77,7 @@ class TradingEnv(gym.Env):
             'usdt': spaces.Box(low=0, high=np.inf, shape=(1,), dtype=np.float32),
             'crypto_data': spaces.Box(low=0, high=np.inf, shape=(self.df.shape[1]-1,)),
             'financial_data': spaces.Box(low=-np.inf, high=np.inf, shape=(self.financial_df.shape[1]-1,)),
+            'indicators_data': spaces.Box(low=-np.inf, high=np.inf, shape=(self.indicators_df.shape[1]-1,)),
             'portfolio': spaces.Box(low=0, high=np.iinfo(np.int64).max, shape=(len(self.portfolio),), dtype=np.int64)
         })
 
@@ -150,7 +148,7 @@ class TradingEnv(gym.Env):
 
         if self.period >= self.end_period or (self.actual_profit < self.initial_usdt * self.max_loss):
             if self.period == self.end_period:
-                print(f'Hell yeah! Profits: {self.actual_profit}')
+                print(f'Hell yeah! Profits: {self.actual_profit - self.initial_usdt}')
             truncated = True
         else:
             truncated = False
