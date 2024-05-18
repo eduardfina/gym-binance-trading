@@ -13,7 +13,7 @@ PERIODS = [
     ['2023-06-04', '2024-03-05']
 ]
 
-TRAINED = [False, False, False, False, False]
+TRAINED = [False, False, True, False, False]
 TESTED = [False, False, False, False, False]
 
 
@@ -25,7 +25,7 @@ def main():
 
     for t in arr:
         t = int(t)
-        name = f'A2C5mWindowSizePeriod{t}'
+        name = f'5mPeriod{t}'
 
         if not TRAINED[t]:
             for p in periods:

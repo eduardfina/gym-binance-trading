@@ -25,7 +25,7 @@ def main():
 
     for t in arr:
         t = int(t)
-        name = f'TRPO1dWindowSizePeriod{t}'
+        name = f'1dPeriod{t}'
 
         if not TRAINED[t]:
             for p in periods:

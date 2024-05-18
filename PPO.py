@@ -56,6 +56,7 @@ def ppo_continue_training(name, model, timeframe, start_date, end_date, total_pe
     model.save('Models/PPO/PPO_' + name + '_data.model')
     return model
 
+
 def ppo_test(model, timeframe, start_date, end_date, results_file, n_episodes=10, investment=100000):
     env = gym.make(f'binance-v0-{timeframe}', initial_usdt=investment, start_date=start_date, end_date=end_date)
 

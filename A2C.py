@@ -14,7 +14,7 @@ def load_a2c_model(name):
     return A2C.load('./Models/A2C/A2C_' + name + '_data.model', custom_objects={'lr_schedule': None})
 
 
-def a2c_train(name, timeframe, start_date, end_date, total_periods=5000000, investment=100000, verbose=0):
+def a2c_train(name, timeframe, start_date, end_date, total_periods=250000, investment=100000, verbose=0):
     env = gym.make(f'binance-v0-{timeframe}', initial_usdt=investment, start_date=start_date, end_date=end_date)
 
     log_dir = './logs/A2C/'
@@ -35,7 +35,7 @@ def a2c_train(name, timeframe, start_date, end_date, total_periods=5000000, inve
     return model
 
 
-def a2c_continue_training(name, model, timeframe, start_date, end_date, total_periods=5000000, investment=100000, verbose=0):
+def a2c_continue_training(name, model, timeframe, start_date, end_date, total_periods=250000, investment=100000, verbose=0):
     env = gym.make(f'binance-v0-{timeframe}', initial_usdt=investment, start_date=start_date, end_date=end_date)
 
     log_dir = './logs/A2C/'
