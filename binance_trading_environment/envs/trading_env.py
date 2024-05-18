@@ -4,6 +4,7 @@ from enum import Enum
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 import gymnasium as gym
 from gymnasium import spaces
@@ -18,7 +19,11 @@ class Actions(Enum):
 class TradingEnv(gym.Env):
     metadata = {'render_modes': ['human'], 'render_fps': 3}
 
-    def __init__(self, df, financial_df, indicators_df, initial_usdt, start_date, end_date, volume_trade=0.05, render_mode=None):
+    def __init__(self, df, financial_df, indicators_df, initial_usdt, start_date, end_date, window_size=10, volume_trade=0.05, render_mode=None):
+
+        first_date = df.values[0][0].split()[0]
+        if (datetime.strptime(start_date, "%Y-%m-%d") - datetime.strptime(first_date, "%Y-%m-%d")).days < window_size:
+            raise ValueError(f"Start date {start_date} is less than first date {first_date} + {window_size} days (window size)")
 
         self.render_mode = render_mode
 
@@ -26,6 +31,7 @@ class TradingEnv(gym.Env):
         self.financial_df = financial_df
         self.indicators_df = indicators_df
         self.last_index = df.index[-1]
+        self.window_size = window_size
 
         self.initial_usdt = initial_usdt
         self.volume_trade = volume_trade
@@ -40,14 +46,15 @@ class TradingEnv(gym.Env):
 
         self.total_trading_fee = 0
         self.initial_period = df.index[df['timestamp'].str.contains(start_date)].values[0]
+
         self.end_period = df.index[df['timestamp'].str.contains(end_date)].values[0]
 
         self.action_space = spaces.MultiDiscrete([len(Actions) for _ in range(len(self.portfolio))])
         self.observation_space = spaces.Dict({
             'usdt': spaces.Box(low=0, high=np.inf, shape=(1,), dtype=np.float32),
-            'crypto_data': spaces.Box(low=0, high=np.inf, shape=(self.df.shape[1]-1,)),
-            'financial_data': spaces.Box(low=-np.inf, high=np.inf, shape=(self.financial_df.shape[1]-1,)),
-            'indicators_data': spaces.Box(low=-np.inf, high=np.inf, shape=(self.indicators_df.shape[1]-1,)),
+            'crypto_data': spaces.Box(low=0, high=np.inf, shape=(self.window_size, self.df.shape[1]-1,), dtype=np.float32),
+            'financial_data': spaces.Box(low=-np.inf, high=np.inf, shape=(self.window_size, self.financial_df.shape[1]-1,), dtype=np.float32),
+            'indicators_data': spaces.Box(low=-np.inf, high=np.inf, shape=(self.window_size, self.indicators_df.shape[1]-1,), dtype=np.float32),
             'portfolio': spaces.Box(low=0, high=np.iinfo(np.int64).max, shape=(len(self.portfolio),), dtype=np.int64)
         })
 
@@ -61,11 +68,24 @@ class TradingEnv(gym.Env):
 
         return {
                 'usdt': np.array(self.usdt, dtype=np.float32).reshape(1, ),
-                'crypto_data': self.df.loc[self.period, self.df.columns != 'timestamp'].to_numpy(dtype=np.float32),
-                'financial_data': self.financial_df.loc[financial_index, self.financial_df.columns != 'Dates'].to_numpy(dtype=np.float32),
-                'indicators_data': self.indicators_df.loc[indicators_index, self.indicators_df.columns != 'Dates'].to_numpy(dtype=np.float32),
+                'crypto_data': self.df.loc[self.period - self.window_size + 1: self.period, self.df.columns != 'timestamp'].to_numpy(dtype=np.float32),
+                'financial_data': self.financial_df.loc[financial_index - self.window_size + 1: financial_index, self.financial_df.columns != 'Dates'].to_numpy(dtype=np.float32),
+                'indicators_data': self.indicators_df.loc[indicators_index - self.window_size + 1: indicators_index, self.indicators_df.columns != 'Dates'].to_numpy(dtype=np.float32),
                 'portfolio': np.array(self.portfolio, dtype=np.int64)
         }
+
+    def get_sizes(self):
+        obs_size = 0
+        for _, subspace in self.observation_space.spaces.items():
+            if isinstance(subspace, gym.spaces.Box):
+                if len(subspace.shape) == 1:
+                    obs_size += subspace.shape[0]
+                else:
+                    obs_size += np.prod(subspace.shape)
+            elif isinstance(subspace, gym.spaces.Discrete):
+                obs_size += 1  # For discrete spaces, just add 1 for the dimension
+        # Add handling for other types of spaces if necessary
+        return obs_size, [len(Actions), len(self.portfolio)]
 
     def reset(self, seed=None, options=None):
 
@@ -75,9 +95,9 @@ class TradingEnv(gym.Env):
         self.action_space = spaces.MultiDiscrete([len(Actions) for _ in range(len(self.portfolio))])
         self.observation_space = spaces.Dict({
             'usdt': spaces.Box(low=0, high=np.inf, shape=(1,), dtype=np.float32),
-            'crypto_data': spaces.Box(low=0, high=np.inf, shape=(self.df.shape[1]-1,)),
-            'financial_data': spaces.Box(low=-np.inf, high=np.inf, shape=(self.financial_df.shape[1]-1,)),
-            'indicators_data': spaces.Box(low=-np.inf, high=np.inf, shape=(self.indicators_df.shape[1]-1,)),
+            'crypto_data': spaces.Box(low=0, high=np.inf, shape=(self.window_size, self.df.shape[1]-1,), dtype=np.float32),
+            'financial_data': spaces.Box(low=-np.inf, high=np.inf, shape=(self.window_size, self.financial_df.shape[1]-1,), dtype=np.float32),
+            'indicators_data': spaces.Box(low=-np.inf, high=np.inf, shape=(self.window_size, self.indicators_df.shape[1]-1,), dtype=np.float32),
             'portfolio': spaces.Box(low=0, high=np.iinfo(np.int64).max, shape=(len(self.portfolio),), dtype=np.int64)
         })
 
@@ -145,14 +165,16 @@ class TradingEnv(gym.Env):
 
         state = self._get_obs()
         info = self._get_info()
+        done = False
+        truncated = False
 
-        if self.period >= self.end_period or (self.actual_profit < self.initial_usdt * self.max_loss):
+        if self.period >= self.end_period:
             if self.period == self.end_period:
                 print(f'Hell yeah! Profits: {self.actual_profit - self.initial_usdt}')
+            done = True
+        elif self.actual_profit < self.initial_usdt * self.max_loss:
             truncated = True
-        else:
-            truncated = False
 
         self.period += 1
 
-        return state, reward, False, truncated, info
+        return state, reward, done, truncated, info

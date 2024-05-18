@@ -8,20 +8,21 @@ import binance_trading_environment
 from stable_baselines3 import PPO
 from stable_baselines3.ppo import MultiInputPolicy
 from stable_baselines3.common.monitor import Monitor
+import tensorflow as tf
 
 
 def load_ppo_model(name):
-    return PPO.load('./Models/PPO_' + name + '_data.model')
+    return PPO.load('./Models/PPO/PPO_' + name + '_data.model')
 
 
-def ppo_train(name, timeframe, start_date, end_date, total_periods=30000000, investment=100000, verbose=0):
+def ppo_train(name, timeframe, start_date, end_date, total_periods=250000, investment=100000, verbose=0):
     env = gym.make(f'binance-v0-{timeframe}', initial_usdt=investment, start_date=start_date, end_date=end_date)
 
-    log_dir = './logs/'
+    log_dir = './logs/PPO/'
     os.makedirs(log_dir, exist_ok=True)
 
     env = Monitor(env, log_dir)
-    model = PPO(MultiInputPolicy, env, verbose=verbose, tensorboard_log=log_dir)
+    model = PPO(MultiInputPolicy, env, verbose=verbose, tensorboard_log=log_dir, device='cuda')
 
     if verbose > 0:
         print("Train initialized: PPO_{}".format(name))
@@ -31,9 +32,29 @@ def ppo_train(name, timeframe, start_date, end_date, total_periods=30000000, inv
     if verbose > 0:
         print("Train finished: PPO_{}".format(name))
 
-    model.save('Models/PPO_' + name + '_data.model')
+    model.save('Models/PPO/PPO_' + name + '_data.model')
     return model
 
+
+def ppo_continue_training(name, model, timeframe, start_date, end_date, total_periods=250000, investment=100000, verbose=0):
+    env = gym.make(f'binance-v0-{timeframe}', initial_usdt=investment, start_date=start_date, end_date=end_date)
+
+    log_dir = './logs/PPO/'
+    os.makedirs(log_dir, exist_ok=True)
+
+    env = Monitor(env, log_dir)
+    model.set_env(env)
+
+    if verbose > 0:
+        print("Train initialized: PPO_{}".format(name))
+
+    model.learn(total_timesteps=total_periods, progress_bar=True)
+
+    if verbose > 0:
+        print("Train finished: PPO_{}".format(name))
+
+    model.save('Models/PPO/PPO_' + name + '_data.model')
+    return model
 
 def ppo_test(model, timeframe, start_date, end_date, results_file, n_episodes=10, investment=100000):
     env = gym.make(f'binance-v0-{timeframe}', initial_usdt=investment, start_date=start_date, end_date=end_date)
@@ -80,5 +101,5 @@ def ppo_test(model, timeframe, start_date, end_date, results_file, n_episodes=10
         'l_info': l_info
     }
 
-    pickle.dump(agent_ppo_pickle, open('./results/PPO_' + results_file + '_pickle.pickle', 'wb'))
+    pickle.dump(agent_ppo_pickle, open('./results/PPO/PPO_' + results_file + '_pickle.pickle', 'wb'))
 

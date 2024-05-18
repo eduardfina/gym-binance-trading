@@ -27,7 +27,7 @@ register(
         'volume_trade': 0.1,
     }
 )
-
+'''
 register(
     id='binance-v0-1h',
     entry_point='binance_trading_environment.envs:TradingEnv',
@@ -36,15 +36,15 @@ register(
         'financial_df': financial_data,
         'volume_trade': 0.1,
     }
-)
-'''
+) '''
+
 register(
     id='binance-v0-1d',
     entry_point='binance_trading_environment.envs:TradingEnv',
     kwargs={
         'df': ds.load_dataset('crypto_data_1d'),
         'financial_df': financial_data,
+        'indicators_df': indicators_data,
         'volume_trade': 0.1,
     }
 )
-'''
